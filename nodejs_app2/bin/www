@@ -1,0 +1,153 @@
+#!/usr/bin/env node
+
+/**
+ * 模块依赖
+ */
+var wslisten = require('../routes/ws');
+var app = require('../app');
+
+var debug = require('debug')('nodejs-app2:server');
+var http = require('http');
+var https= require('https');
+var fs = require('fs');
+var wsokt = require('ws');
+
+
+/**
+ * 证书
+ * */
+var privateKey  = fs.readFileSync('certs/server.key','utf8');
+var certificate = fs.readFileSync('certs/server.crt','utf8');
+
+// var privateKey  = fs.readFileSync('certs/key.pem','utf8');
+// var certificate = fs.readFileSync('certs/cert.pem','utf8');
+var credentials = {key: privateKey, cert: certificate};
+
+
+/**
+ * 从环境中获取端口并在Express中存储
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+var sslPort = normalizePort(process.env.PORT || '443');
+app.set('port', port);
+app.set('sslPort', sslPort);
+
+
+/**
+ * 创建HTTP服务器
+ * 创建HTTPS服务器
+ */
+
+var server = http.createServer(app);
+let ws = new wsokt.Server({server:server});
+ws.on('connection',wslisten.onConnection);
+
+
+var ssl=https.createServer(credentials,app);
+
+let wss = new wsokt.Server({server:ssl});
+wss.on('connection',wslisten.onConnection);
+
+/**
+ * 监听所提供的端口和所有网络接口
+ */
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+ssl.listen(sslPort);
+ssl.on('error', onError);
+ssl.on('listening', onListeningSsl);
+
+
+/**
+ * 将端口规范化为数字、字符串或false。
+ */
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * HTTP服务器“错误”事件的事件监听器。
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+
+}
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof sslPort === 'string'
+    ? 'Pipe ' + sslPort
+    : 'Port ' + sslPort;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * 事件监听器，用于HTTP服务器监听事件。
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
+function onListeningSsl() {
+  var addr = ssl.address();
+  var bind = typeof addr === 'string'
+      ? 'pipe ' + addr
+      : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
